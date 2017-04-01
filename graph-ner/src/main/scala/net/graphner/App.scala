@@ -71,5 +71,6 @@ class GraphNerOpts extends cc.factorie.util.CmdOptions with SharedNLPCmdOptions
 
 class TweetGraphNER()(implicit mp: ModelProvider[Nothing], features: StaticLexiconFeatures)
 extends GraphNER{
-  def loadDocs(fileName: String):
+  def loadDocs(fileName: String): //TODO: read from this file and extract features.
 }
+
