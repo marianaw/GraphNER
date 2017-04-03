@@ -1,14 +1,17 @@
 package net.graphner
 
-import java.io.File
+import java.io._
 
+import scala.io.Source
 import cc.factorie._
-import cc.factorie.app.nlp.SharedNLPCmdOptions
+import cc.factorie.app.nlp._
 import cc.factorie.app.nlp.lexicon.StaticLexicons
-import cc.factorie.app.nlp.ner.StaticLexiconFeatures
+import cc.factorie.app.nlp.ner.{LabeledBioConllNerTag, StaticLexiconFeatures}
 import cc.factorie.la
 import cc.factorie.optimize._
 import cc.factorie.util._
+
+import scala.collection.mutable.ArrayBuffer
 
 /**
  * @author Mariana Vargas Vieyra
@@ -28,8 +31,8 @@ object SentenceGraphNerTrainer extends HyperparameterMain{
       )
 
     val (trainDocs, testDocs) = if(opts.train.wasInvoked && opts.test.wasInvoked){
-      ner.loadDocs(opts.train.value.getAbsolutePath).toSeq ->
-        ner.loadDocs(opts.test.value.getAbsolutePath).toSeq
+      ner.loadDocs(opts.train.value.getAbsolutePath) ->
+        ner.loadDocs(opts.test.value.getAbsolutePath)
     } else{
       throw new IllegalArgumentException("You must provide --train and --test arguments.")
     }
@@ -40,7 +43,6 @@ object SentenceGraphNerTrainer extends HyperparameterMain{
 }
 
 object SentenceGraphNER {
-
   def main(args : Array[String]) {
     val opts = new GraphNerOpts
     opts.parse(args)
@@ -52,25 +54,73 @@ object SentenceGraphNER {
     // Create an executor:
     val exec = new QSubExecutor(10, "net.graphner.SentenceGraphNerTrainer")
 
+    // Tuning hyperparameters:
+    println("Tuning hyperparameters.")
+    val optimizer = new HyperParameterSearcher(opts, Seq(rate, delta), exec.execute, 100, 90, 60)
+    val result = optimizer.optimize()
 
+    // Fitting model:
+    println("Fitting...")
+    exec.execute(opts.values.flatMap(_.unParse).toArray)
+    println("Ready!")
   }
-
 }
+
 
 class GraphNerOpts extends cc.factorie.util.CmdOptions with SharedNLPCmdOptions
   with ModelProviderCmdOptions with DefaultCmdOptions{
   val saveModel = new CmdOption("save-model", "SentenceGraphNER.md", "FILE",
     "Filename where the model is already or will be saved.")
   val train = new CmdOption("train", new File(""), "File",
-    "Filename(s) from which to read training data in CoNLL 2003 one-word-per-lineformat.")
+    "Filename with training set.")
   val test = new CmdOption("test", new File(""), "File",
-    "Filename(s) from which to read test data in CoNLL 2003 one-word-per-lineformat.")
+    "Filename where the test data is.")
   val learningRate = new CmdOption("learning-rate", 0.15, "DOUBLE", "The learning rate for AdaGrad.")
   val delta = new CmdOption("delta", 0.06, "DOUBLE", "Learning delta for AdaGrad.")
 }
 
+
 class TweetGraphNER()(implicit mp: ModelProvider[Nothing], features: StaticLexiconFeatures)
 extends GraphNER{
-  def loadDocs(fileName: String): //TODO: read from this file and extract features.
+  def loadDocs(fileName: String): Seq[Document] = {
+    val documents = new ArrayBuffer[Document]
+    var document = new Document("").setName("TwitterDocs_" + documents.length + "_NER")
+    var sentence = new Sentence(document)
+
+    // Read the file and load a list of documents.
+    for (line <- Source.fromFile(fileName).getLines()) {
+
+      sentence = new Sentence(document)
+
+      if (line.split(' ').length == 0) {
+
+        // Add the document to our list of documents, but first get its content as a string:
+        document.asSection.chainFreeze()
+        documents += document
+
+        // Create a fresh document to start loading new tweets:
+        document = new Document("").setName("TwitterDocs_" + documents.length + "_NER")
+        sentence = new Sentence(document)
+
+        // We have to process a line which consists on a token and a label:
+      } else {
+        val fields = line.split(" ")
+        assert(fields.length == 2)
+        val word = fields(0)
+        val label = fields(1)
+        if (sentence.length > 0) {
+          document.appendString(" ")
+        }
+        // Add this token to the sentence:
+        val token = new Token(sentence, word)
+        val tweetLabel = new TweetLabel(token, label)
+        token.attr += tweetLabel
+      }
+    }
+    println("Loaded " + documents.length + " documents.")
+    documents
+  }
 }
 
+
+class TweetLabel(token : cc.factorie.app.nlp.Token, initialCategory : scala.Predef.String){}
