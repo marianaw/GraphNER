@@ -121,6 +121,7 @@ extends GraphNER[TwitterNerTag](
         sentence = new Sentence(document)
 
         // We have to process a line which consists on a token and a label:
+        // TODO: we have to encode relations that yield non chain-shaped graphs.
       } else {
         val fields = line.split(" ")
         assert(fields.length == 2)
