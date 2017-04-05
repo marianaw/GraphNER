@@ -6,10 +6,11 @@ import scala.io.Source
 import cc.factorie._
 import cc.factorie.app.nlp._
 import cc.factorie.app.nlp.lexicon.StaticLexicons
-import cc.factorie.app.nlp.ner.{LabeledBioConllNerTag, StaticLexiconFeatures}
+import cc.factorie.app.nlp.ner.{LabeledBioConllNerTag, NerLexiconFeatures, NerTag, StaticLexiconFeatures}
 import cc.factorie.la
 import cc.factorie.optimize._
 import cc.factorie.util._
+import cc.factorie.variable.EnumDomain
 
 import scala.collection.mutable.ArrayBuffer
 
@@ -80,8 +81,25 @@ class GraphNerOpts extends cc.factorie.util.CmdOptions with SharedNLPCmdOptions
 }
 
 
-class TweetGraphNER()(implicit mp: ModelProvider[Nothing], features: StaticLexiconFeatures)
-extends GraphNER{
+object TwitterNerDomain extends EnumDomain {
+  val O, PER, ORG, LOC, MISC = Value
+  freeze()
+}
+
+
+class TwitterNerTag(token:Token, initialCategory:String) extends NerTag(token, initialCategory) with Serializable {
+  def domain = TwitterNerDomain
+}
+
+
+class TweetGraphNER()(implicit mp: ModelProvider[Nothing], nerLexiconFeatures: NerLexiconFeatures)
+extends GraphNER[TwitterNerTag](
+  TwitterNerDomain,
+  (t, s) => new TwitterNerTag(t, s),
+  l => l.token,
+  mp.provide,
+  nerLexiconFeatures) with Serializable{
+
   def loadDocs(fileName: String): Seq[Document] = {
     val documents = new ArrayBuffer[Document]
     var document = new Document("").setName("TwitterDocs_" + documents.length + "_NER")
