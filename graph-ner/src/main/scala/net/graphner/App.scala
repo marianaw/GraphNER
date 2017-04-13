@@ -139,6 +139,7 @@ extends GraphNER[TwitterNerTag](
     println("Loaded " + documents.length + " documents.")
     documents
   }
+
 }
 
 
