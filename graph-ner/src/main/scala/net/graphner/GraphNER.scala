@@ -6,7 +6,7 @@ import cc.factorie.Factorie.BinaryFeatureVectorVariable
 import cc.factorie.app.nlp.coref.CorefFeatures.True
 import cc.factorie.app.nlp.{Document, DocumentAnnotator, Sentence, Token}
 import cc.factorie.app.nlp.ner.{NerLexiconFeatures, NerTag}
-import cc.factorie.infer.{BP, InferByBPLoopy}
+import cc.factorie.infer.{BP, InferByBPLoopy, InferByBPLoopyTreewise}
 import cc.factorie.optimize.{AdaGrad, LikelihoodExample, Trainer}
 import cc.factorie.variable._
 
@@ -15,6 +15,11 @@ import scala.reflect.ClassTag
 /**
   * Created by mariana on 4/1/17.
   */
+
+class TreeDocument extends Document{
+  override def tokens: Tree[Token]
+}
+
 abstract class GraphNER [L <: NerTag](val labelDomain: CategoricalDomain[String],
                                       val newLabel: (Token, String) => L,
                                       labelToToken: L => Token,
@@ -70,7 +75,7 @@ abstract class GraphNER [L <: NerTag](val labelDomain: CategoricalDomain[String]
     }
 
     val examples =
-      trainDocs.map(sentence => new LikelihoodExample(sentence.tokens.map(_.attr[L]), model, InferByBPLoopy))
+      trainDocs.map(sentence => new LikelihoodExample(sentence.tokens.map(_.attr[L]), model, InferByBPLoopyTreewise))
     Trainer.onlineTrain(model.parameters, examples, optimizer = optimizer, evaluate = evaluate)
 
     // TODO: evaluate here testDocs.
